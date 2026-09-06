@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drink & Drive Driver</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}.wrap{max-width:700px;margin:auto;padding:18px}
+.card{background:#fff;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 4px 18px #0001}
+input,button{width:100%;box-sizing:border-box;padding:13px;margin:6px 0;border-radius:10px;border:1px solid #ccd4e0}
+button{background:#1769ff;color:#fff;border:0;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.trip{border:1px solid #e0e5ed;border-radius:12px;padding:12px;margin:10px 0}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style></head><body><div class="wrap"><h2>🚗 Drink & Drive — Driver</h2>
+<div id="login" class="card"><input id="u" placeholder="Username"><input id="p" type="password" placeholder="Password"><button onclick="signin()">Sign In</button><div id="m"></div></div>
+<div id="app" style="display:none"><button onclick="load()">Refresh Assigned Bookings</button><div id="list"></div></div></div>
+<script>
+const API="/api";let token=localStorage.getItem("ddtoken")||"";const $=x=>document.getElementById(x);
+async function req(p,o={}){o.headers={...(o.headers||{}),"Authorization":"Bearer "+token,"Content-Type":"application/json"};const r=await fetch(API+p,o),j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j}
+async function signin(){try{const r=await fetch(API+"/driver/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:$("u").value,password:$("p").value})}),j=await r.json();if(!r.ok)throw Error(j.error||"Login failed");token=j.token;localStorage.setItem("ddtoken",token);$("login").style.display="none";$("app").style.display="block";load()}catch(e){$("m").textContent=e.message}}
+async function load(){try{const j=await req("/driver/bookings");$("list").innerHTML=j.bookings.map(x=>`<div class=trip><b>${x.booking_number}</b><br>${x.pickup} → ${x.destination}<br>Customer: ${x.customer_phone}<br>Package: Rs.${x.package_price||x.price}<div class=grid><input id="s-${x.booking_number}" type="number" step="0.1" placeholder="Start KM"><input id="e-${x.booking_number}" type="number" step="0.1" placeholder="End KM"><input id="h-${x.booking_number}" type="number" min="0" placeholder="Waiting hours"><input id="w-${x.booking_number}" type="number" min="0" max="59" placeholder="Waiting minutes"></div><label>Start KM meter photo</label><input id="sp-${x.booking_number}" type="file" accept="image/*" capture="environment"><label>End KM meter photo</label><input id="ep-${x.booking_number}" type="file" accept="image/*" capture="environment"><button onclick="complete('${x.booking_number}')">Submit Trip to Admin</button></div>`).join("")}catch(e){$("list").textContent=e.message}}
+function fileData(id){return new Promise((res,rej)=>{const f=$(id).files[0];if(!f)return res("");const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)})}
+async function complete(no){const s=+$("s-"+no).value,e=+$("e-"+no).value,h=+$("h-"+no).value||0,w=+$("w-"+no).value||0;if(!Number.isFinite(s)||!Number.isFinite(e)||e<s)return alert("Check KM readings");const sp=await fileData("sp-"+no),ep=await fileData("ep-"+no);const r=await req("/driver/bookings/"+encodeURIComponent(no)+"/complete",{method:"POST",body:JSON.stringify({start_km:s,end_km:e,waiting_hours:h,waiting_minutes:w,start_meter_photo:sp,end_meter_photo:ep})});alert("Submitted. Amount to collect: Rs. "+(+r.calculated_amount).toLocaleString());load()}
+if(token){$("login").style.display="none";$("app").style.display="block";load().catch(()=>{localStorage.removeItem("ddtoken");token=""})}
+</script></body></html>

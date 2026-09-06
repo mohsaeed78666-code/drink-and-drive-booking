@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drink & Drive Admin</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}.wrap{max-width:900px;margin:auto;padding:18px}
+.card{background:#fff;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 4px 18px #0001}
+input,select,button{width:100%;box-sizing:border-box;padding:13px;margin:6px 0;border-radius:10px;border:1px solid #ccd4e0}
+button{background:#1769ff;color:#fff;border:0;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.item{border:1px solid #e0e5ed;border-radius:12px;padding:12px;margin:10px 0}.muted{color:#667085;font-size:13px}
+@media(max-width:650px){.grid{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<h2>🚗 Drink & Drive — Admin</h2>
+<div class="card"><input id="key" placeholder="Admin key"><button onclick="login()">Open Admin</button><div id="msg"></div></div>
+<div id="app" style="display:none">
+<div class="card"><h3>Create Booking</h3><div class="grid">
+<input id="name" placeholder="Customer name"><input id="phone" placeholder="Customer mobile">
+<input id="date" type="date"><input id="time" type="time">
+<input id="pickup" placeholder="Pickup"><input id="drop" placeholder="Drop">
+<select id="pkg"><option value="2500">Rs. 2,500</option><option value="3000">Rs. 3,000</option><option value="3500">Rs. 3,500</option></select>
+<select id="driver"></select></div>
+<button onclick="createBooking()">Create & Assign Booking</button>
+<div class="muted">10 km included • Rs.100/km beyond 10 km • Rs.500 per completed 15 minutes waiting</div></div>
+<div class="card"><h3>Bookings</h3><button onclick="load()">Refresh</button><div id="list"></div></div>
+<div class="card"><h3>Drivers</h3><div id="drivers"></div></div>
+</div></div>
+<script>
+const API="/api";let KEY=sessionStorage.getItem("adminKey")||"";const $=x=>document.getElementById(x);$("key").value=KEY;
+async function req(p,o={}){o.headers={...(o.headers||{}),"X-Admin-Key":KEY,"Content-Type":"application/json"};const r=await fetch(API+p,o),j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j}
+async function login(){KEY=$("key").value.trim();try{await req("/admin/drivers");sessionStorage.setItem("adminKey",KEY);$("app").style.display="block";$("msg").textContent="Connected";load()}catch(e){$("msg").textContent=e.message}}
+async function load(){try{const [b,d]=await Promise.all([req("/admin/bookings"),req("/admin/drivers")]);$("driver").innerHTML=d.drivers.map(x=>`<option value="${x.id}">${x.name} — ${x.phone}</option>`).join("");$("drivers").innerHTML=d.drivers.map(x=>`<div class=item><b>${x.name}</b> — ${x.phone}<br><span class=muted>Username: ${x.username||"Not set"} | Login: ${x.login_enabled?"Enabled":"Disabled"}</span></div>`).join("");$("list").innerHTML=b.bookings.map(x=>`<div class=item><b>${x.booking_number}</b> — ${x.status}<br>${x.customer_phone} • ${x.pickup} → ${x.destination}<br>Driver: ${x.driver_name||"-"}<br>Package: Rs.${x.package_price||x.price} • Calculated: Rs.${x.calculated_amount||0} • Final: Rs.${x.final_amount||0}${x.status==="COMPLETED"?`<input id="f-${x.booking_number}" type="number" value="${x.final_amount||x.calculated_amount||0}"><button onclick="approve('${x.booking_number}')">Approve & Send WhatsApp</button>`:""}</div>`).join("")}catch(e){$("list").textContent=e.message}}
+async function createBooking(){const b={customer_name:$("name").value,customer_phone:$("phone").value,pickup:$("pickup").value,destination:$("drop").value,booking_date:$("date").value,booking_time:$("time").value,package_price:+$("pkg").value,driver_id:+$("driver").value};const r=await req("/admin/bookings",{method:"POST",body:JSON.stringify(b)});alert("Booking "+r.booking_number+" created");load()}
+async function approve(no){const amt=+$("f-"+no).value;await req("/admin/bookings/"+encodeURIComponent(no),{method:"PUT",body:JSON.stringify({final_amount:amt,status:"APPROVED"})});const b=(await req("/admin/bookings")).bookings.find(x=>x.booking_number===no);const phone=String(b.customer_phone).replace(/\D/g,"");const msg=encodeURIComponent(`Drink & Drive Booking ${no}\nFinal Amount: Rs. ${amt.toLocaleString()}\nThank you.`);location.href=`https://wa.me/${phone}?text=${msg}`}
+if(KEY){req("/admin/drivers").then(()=>{$("app").style.display="block";load()}).catch(()=>{})}
+</script></body></html>
