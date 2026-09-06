@@ -1,8 +1,17 @@
 {
-  "$schema":"node_modules/wrangler/config-schema.json",
-  "name":"drink-and-drive-booking",
-  "main":"src/index.js",
-  "compatibility_date":"2026-09-05",
-  "assets":{"directory":"./public","binding":"ASSETS"},
-  "d1_databases":[{"binding":"DB","database_name":"drink-drive-db","database_id":"REPLACE_WITH_YOUR_D1_DATABASE_ID"}]
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "drink-and-drive-booking",
+  "main": "index.js",
+  "compatibility_date": "2026-09-05",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "drink-drive-db",
+      "database_id": "e61d397d-43fe-48cd-af46-cf48ab62d18c"
+    }
+  ]
 }
