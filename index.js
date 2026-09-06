@@ -1,25 +1,705 @@
-const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"Content-Type, X-Admin-Key, Authorization","Access-Control-Allow-Methods":"GET,POST,PUT,OPTIONS"};
-const J=(d,s=200)=>new Response(JSON.stringify(d),{status:s,headers:{"content-type":"application/json",...cors}});
-const T=x=>String(x??"").trim();
-async function H(x){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(x));return[...new Uint8Array(b)].map(v=>v.toString(16).padStart(2,"0")).join("")}
-function A(r,e){return e.ADMIN_KEY&&r.headers.get("X-Admin-Key")===e.ADMIN_KEY}
-async function D(r,e){const h=r.headers.get("Authorization")||"";if(!h.startsWith("Bearer "))return null;const [id,s]=h.slice(7).split(".");const d=await e.DB.prepare("SELECT * FROM drivers WHERE id=? AND login_enabled=1").bind(id).first();if(!d||!d.password_hash)return null;return(await H(`${d.id}:${d.password_hash}:${e.SESSION_SECRET||"drink-drive"}`))===s?d:null}
-async function tok(d,e){return d.id+"."+await H(`${d.id}:${d.password_hash}:${e.SESSION_SECRET||"drink-drive"}`)}
-export default{async fetch(r,e){if(r.method==="OPTIONS")return new Response(null,{status:204,headers:cors});const u=new URL(r.url);if(!u.pathname.startsWith("/api/"))return e.ASSETS.fetch(r);
-try{
-if(u.pathname==="/api/driver/login"&&r.method==="POST"){const b=await r.json(),d=await e.DB.prepare("SELECT * FROM drivers WHERE username=? AND login_enabled=1").bind(T(b.username)).first();if(!d||!d.password_hash||d.password_hash!==await H(T(b.password)))return J({error:"Invalid login"},401);return J({token:await tok(d,e),driver:{id:d.id,name:d.name,phone:d.phone}})}
-const d=await D(r,e);
-if(u.pathname==="/api/driver/me"&&r.method==="GET")return d?J({driver:{id:d.id,name:d.name,phone:d.phone}}):J({error:"Unauthorized"},401);
-if(u.pathname==="/api/driver/bookings"&&r.method==="GET"){if(!d)return J({error:"Unauthorized"},401);const q=await e.DB.prepare("SELECT * FROM bookings WHERE driver_id=? AND status IN ('ASSIGNED','STARTED','COMPLETED','REVIEW') ORDER BY booking_date,booking_time").bind(d.id).all();return J({bookings:q.results})}
-let m=u.pathname.match(/^\/api\/driver\/bookings\/([^/]+)\/complete$/);
-if(m&&r.method==="POST"){if(!d)return J({error:"Unauthorized"},401);const b=await r.json(),no=decodeURIComponent(m[1]),row=await e.DB.prepare("SELECT * FROM bookings WHERE booking_number=? AND driver_id=?").bind(no,d.id).first();if(!row)return J({error:"Booking not found"},404);const s=+b.start_km,x=+b.end_km,h=Math.max(0,+b.waiting_hours||0),w=Math.max(0,+b.waiting_minutes||0);if(!Number.isFinite(s)||!Number.isFinite(x)||x<s)return J({error:"Invalid KM readings"},400);const dist=x-s,extra=Math.max(0,dist-10)*100,wait=Math.floor((h*60+w)/15)*500,calc=+(row.package_price??row.price??0)+extra+wait;await e.DB.prepare("UPDATE bookings SET start_km=?,end_km=?,start_meter_photo=?,end_meter_photo=?,distance_km=?,waiting_hours=?,waiting_minutes=?,extra_km_amount=?,waiting_charge=?,calculated_amount=?,final_amount=?,status='COMPLETED',completed_at=CURRENT_TIMESTAMP WHERE id=?").bind(s,x,T(b.start_meter_photo),T(b.end_meter_photo),dist,h,w,extra,wait,calc,calc,row.id).run();return J({ok:true,calculated_amount:calc})}
-if(u.pathname==="/api/admin/drivers"&&r.method==="GET"){if(!A(r,e))return J({error:"Unauthorized"},401);const q=await e.DB.prepare("SELECT id,name,phone,whatsapp,vehicle_number,status,username,login_enabled,created_at FROM drivers ORDER BY name").all();return J({drivers:q.results})}
-if(u.pathname==="/api/admin/drivers"&&r.method==="POST"){if(!A(r,e))return J({error:"Unauthorized"},401);const b=await r.json();if(!T(b.name)||!T(b.phone)||!T(b.username)||!T(b.password))return J({error:"Name, phone, username and password are required"},400);const q=await e.DB.prepare("INSERT INTO drivers(name,phone,whatsapp,vehicle_number,status,username,password_hash,login_enabled) VALUES(?,?,?,?,?,?,?,1)").bind(T(b.name),T(b.phone),T(b.whatsapp)||T(b.phone),T(b.vehicle_number),T(b.status)||"available",T(b.username),await H(T(b.password))).run();return J({ok:true,id:q.meta.last_row_id})}
-m=u.pathname.match(/^\/api\/admin\/drivers\/(\d+)$/);if(m&&r.method==="PUT"){if(!A(r,e))return J({error:"Unauthorized"},401);const b=await r.json(),f=[],v=[];for(const k of ["name","phone","whatsapp","vehicle_number","status","username"])if(b[k]!==undefined){f.push(k+"=?");v.push(T(b[k]))}if(b.password){f.push("password_hash=?");v.push(await H(T(b.password)))}if(b.login_enabled!==undefined){f.push("login_enabled=?");v.push(b.login_enabled?1:0)}if(!f.length)return J({error:"Nothing to update"},400);v.push(+m[1]);await e.DB.prepare("UPDATE drivers SET "+f.join(",")+" WHERE id=?").bind(...v).run();return J({ok:true})}
-if(u.pathname==="/api/admin/bookings"&&r.method==="GET"){if(!A(r,e))return J({error:"Unauthorized"},401);const q=await e.DB.prepare("SELECT b.*,d.name driver_name,d.phone driver_phone FROM bookings b LEFT JOIN drivers d ON d.id=b.driver_id ORDER BY b.booking_date DESC,b.booking_time DESC,b.id DESC").all();return J({bookings:q.results})}
-if(u.pathname==="/api/admin/bookings"&&r.method==="POST"){if(!A(r,e))return J({error:"Unauthorized"},401);const b=await r.json(),p=+b.package_price;if(!T(b.customer_phone)||!T(b.pickup)||!T(b.destination)||!b.booking_date||!b.booking_time||![2500,3000,3500].includes(p))return J({error:"Required booking details missing"},400);const no="DD-"+Date.now().toString(36).toUpperCase();await e.DB.prepare("INSERT INTO bookings(customer_name,customer_phone,pickup,destination,booking_date,booking_time,price,package_price,driver_id,status,booking_number,assigned_at) VALUES(?,?,?,?,?,?,?,?,?,'ASSIGNED',?,CURRENT_TIMESTAMP)").bind(T(b.customer_name)||"Customer",T(b.customer_phone),T(b.pickup),T(b.destination),b.booking_date,b.booking_time,p,p,+b.driver_id||null,no).run();return J({ok:true,booking_number:no})}
-m=u.pathname.match(/^\/api\/admin\/bookings\/([^/]+)$/);if(m&&r.method==="PUT"){if(!A(r,e))return J({error:"Unauthorized"},401);const row=await e.DB.prepare("SELECT id FROM bookings WHERE booking_number=?").bind(decodeURIComponent(m[1])).first();if(!row)return J({error:"Booking not found"},404);const b=await r.json(),f=[],v=[];for(const k of ["driver_id","final_amount","status","completion_notes"])if(b[k]!==undefined){f.push(k+"=?");v.push(k==="driver_id"||k==="final_amount"?+b[k]:T(b[k]))}if(!f.length)return J({error:"Nothing to update"},400);v.push(row.id);await e.DB.prepare("UPDATE bookings SET "+f.join(",")+" WHERE id=?").bind(...v).run();return J({ok:true})}
-m=u.pathname.match(/^\/api\/admin\/bookings\/([^/]+)\/invoice-sent$/);if(m&&r.method==="POST"){if(!A(r,e))return J({error:"Unauthorized"},401);await e.DB.prepare("UPDATE bookings SET status='INVOICE_SENT',reviewed_at=CURRENT_TIMESTAMP WHERE booking_number=?").bind(decodeURIComponent(m[1])).run();return J({ok:true})}
-if(u.pathname==="/api/admin/pricing"&&r.method==="GET"){if(!A(r,e))return J({error:"Unauthorized"},401);return J({packages:[2500,3000,3500],included_km:10,extra_km_rate:100,waiting_block_minutes:15,waiting_block:500})}
-return J({error:"Not found"},404)
-}catch(x){return J({error:x.message||"Server error"},500)}}};
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key, Authorization",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS"
+};
+
+const json = (data, status = 200) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      ...cors
+    }
+  });
+
+const text = (value) => String(value ?? "").trim();
+
+async function sha256(value) {
+  const buffer = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value)
+  );
+
+  return [...new Uint8Array(buffer)]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function isAdmin(request, env) {
+  return Boolean(env.ADMIN_KEY) &&
+    request.headers.get("X-Admin-Key") === env.ADMIN_KEY;
+}
+
+async function getDriver(request, env) {
+  const header = request.headers.get("Authorization") || "";
+
+  if (!header.startsWith("Bearer ")) return null;
+
+  const [id, signature] = header.slice(7).split(".");
+
+  if (!id || !signature) return null;
+
+  const driver = await env.DB
+    .prepare(
+      "SELECT * FROM drivers WHERE id=? AND login_enabled=1"
+    )
+    .bind(id)
+    .first();
+
+  if (!driver?.password_hash) return null;
+
+  const expected = await sha256(
+    `${driver.id}:${driver.password_hash}:${env.SESSION_SECRET || "drink-drive"}`
+  );
+
+  return expected === signature ? driver : null;
+}
+
+async function driverToken(driver, env) {
+  return driver.id + "." + await sha256(
+    `${driver.id}:${driver.password_hash}:${env.SESSION_SECRET || "drink-drive"}`
+  );
+}
+
+export default {
+  async fetch(request, env) {
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: cors
+      });
+    }
+
+    const url = new URL(request.url);
+
+    /*
+      Non-API requests are served from the repository assets.
+      This allows admin.html and driver.html to be served by the Worker.
+    */
+    if (!url.pathname.startsWith("/api/")) {
+      return env.ASSETS.fetch(request);
+    }
+
+    try {
+
+      /* =========================
+         DRIVER LOGIN
+         ========================= */
+
+      if (
+        url.pathname === "/api/driver/login" &&
+        request.method === "POST"
+      ) {
+        const body = await request.json();
+
+        const driver = await env.DB
+          .prepare(
+            "SELECT * FROM drivers WHERE username=? AND login_enabled=1"
+          )
+          .bind(text(body.username))
+          .first();
+
+        if (
+          !driver ||
+          !driver.password_hash ||
+          driver.password_hash !== await sha256(
+            text(body.password)
+          )
+        ) {
+          return json(
+            { error: "Invalid login" },
+            401
+          );
+        }
+
+        return json({
+          token: await driverToken(driver, env),
+          driver: {
+            id: driver.id,
+            name: driver.name,
+            phone: driver.phone
+          }
+        });
+      }
+
+
+      /* =========================
+         DRIVER PROFILE
+         ========================= */
+
+      const driver = await getDriver(request, env);
+
+      if (
+        url.pathname === "/api/driver/me" &&
+        request.method === "GET"
+      ) {
+        if (!driver) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        return json({
+          driver: {
+            id: driver.id,
+            name: driver.name,
+            phone: driver.phone
+          }
+        });
+      }
+
+
+      /* =========================
+         DRIVER BOOKINGS
+         ========================= */
+
+      if (
+        url.pathname === "/api/driver/bookings" &&
+        request.method === "GET"
+      ) {
+        if (!driver) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT *
+            FROM bookings
+            WHERE driver_id=?
+              AND status IN (
+                'ASSIGNED',
+                'STARTED',
+                'COMPLETED',
+                'REVIEW'
+              )
+            ORDER BY booking_date, booking_time
+          `)
+          .bind(driver.id)
+          .all();
+
+        return json({
+          bookings: result.results
+        });
+      }
+
+
+      /* =========================
+         DRIVER COMPLETES TRIP
+         ========================= */
+
+      let match = url.pathname.match(
+        /^\/api\/driver\/bookings\/([^/]+)\/complete$/
+      );
+
+      if (
+        match &&
+        request.method === "POST"
+      ) {
+        if (!driver) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const body = await request.json();
+
+        const bookingNumber =
+          decodeURIComponent(match[1]);
+
+        const booking = await env.DB
+          .prepare(
+            "SELECT * FROM bookings WHERE booking_number=? AND driver_id=?"
+          )
+          .bind(
+            bookingNumber,
+            driver.id
+          )
+          .first();
+
+        if (!booking) {
+          return json(
+            { error: "Booking not found" },
+            404
+          );
+        }
+
+        const startKm = Number(body.start_km);
+        const endKm = Number(body.end_km);
+
+        const waitingHours = Math.max(
+          0,
+          Number(body.waiting_hours || 0)
+        );
+
+        const waitingMinutes = Math.max(
+          0,
+          Number(body.waiting_minutes || 0)
+        );
+
+        if (
+          !Number.isFinite(startKm) ||
+          !Number.isFinite(endKm) ||
+          endKm < startKm
+        ) {
+          return json(
+            { error: "Invalid KM readings" },
+            400
+          );
+        }
+
+        if (
+          !Number.isInteger(waitingHours) ||
+          !Number.isInteger(waitingMinutes) ||
+          waitingMinutes > 59
+        ) {
+          return json(
+            { error: "Invalid waiting time" },
+            400
+          );
+        }
+
+        const distanceKm =
+          endKm - startKm;
+
+        /*
+          First 10 km are included.
+          Beyond 10 km = Rs.100 per km.
+        */
+
+        const extraKm =
+          Math.max(0, distanceKm - 10);
+
+        const extraKmAmount =
+          extraKm * 100;
+
+        /*
+          Waiting:
+          Rs.500 for every completed
+          15-minute block.
+        */
+
+        const totalWaitingMinutes =
+          waitingHours * 60 +
+          waitingMinutes;
+
+        const waitingCharge =
+          Math.floor(
+            totalWaitingMinutes / 15
+          ) * 500;
+
+        const packagePrice =
+          Number(
+            booking.package_price ??
+            booking.price ??
+            0
+          );
+
+        const calculatedAmount =
+          packagePrice +
+          extraKmAmount +
+          waitingCharge;
+
+        await env.DB
+          .prepare(`
+            UPDATE bookings SET
+              start_km=?,
+              end_km=?,
+              start_meter_photo=?,
+              end_meter_photo=?,
+              distance_km=?,
+              waiting_hours=?,
+              waiting_minutes=?,
+              extra_km_amount=?,
+              waiting_charge=?,
+              calculated_amount=?,
+              final_amount=?,
+              status='COMPLETED',
+              completed_at=CURRENT_TIMESTAMP
+            WHERE id=?
+          `)
+          .bind(
+            startKm,
+            endKm,
+            text(body.start_meter_photo),
+            text(body.end_meter_photo),
+            distanceKm,
+            waitingHours,
+            waitingMinutes,
+            extraKmAmount,
+            waitingCharge,
+            calculatedAmount,
+            calculatedAmount,
+            booking.id
+          )
+          .run();
+
+        return json({
+          ok: true,
+          booking_number: bookingNumber,
+          distance_km: distanceKm,
+          extra_km_amount: extraKmAmount,
+          waiting_charge: waitingCharge,
+          calculated_amount: calculatedAmount
+        });
+      }
+
+
+      /* =========================
+         ADMIN - DRIVER LIST
+         ========================= */
+
+      if (
+        url.pathname === "/api/admin/drivers" &&
+        request.method === "GET"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              id,
+              name,
+              phone,
+              whatsapp,
+              vehicle_number,
+              status,
+              username,
+              login_enabled,
+              created_at
+            FROM drivers
+            ORDER BY name
+          `)
+          .all();
+
+        return json({
+          drivers: result.results
+        });
+      }
+
+
+      /* =========================
+         ADMIN - CREATE DRIVER
+         ========================= */
+
+      if (
+        url.pathname === "/api/admin/drivers" &&
+        request.method === "POST"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const body = await request.json();
+
+        if (
+          !text(body.name) ||
+          !text(body.phone) ||
+          !text(body.username) ||
+          !text(body.password)
+        ) {
+          return json({
+            error:
+              "Name, phone, username and password are required"
+          }, 400);
+        }
+
+        const passwordHash =
+          await sha256(
+            text(body.password)
+          );
+
+        const result = await env.DB
+          .prepare(`
+            INSERT INTO drivers
+              (
+                name,
+                phone,
+                whatsapp,
+                vehicle_number,
+                status,
+                username,
+                password_hash,
+                login_enabled
+              )
+            VALUES (?,?,?,?,?,?,?,1)
+          `)
+          .bind(
+            text(body.name),
+            text(body.phone),
+            text(body.whatsapp) ||
+              text(body.phone),
+            text(body.vehicle_number),
+            text(body.status) ||
+              "available",
+            text(body.username),
+            passwordHash
+          )
+          .run();
+
+        return json({
+          ok: true,
+          id: result.meta.last_row_id
+        });
+      }
+
+
+      /* =========================
+         ADMIN - UPDATE DRIVER
+         ========================= */
+
+      match = url.pathname.match(
+        /^\/api\/admin\/drivers\/(\d+)$/
+      );
+
+      if (
+        match &&
+        request.method === "PUT"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const body = await request.json();
+
+        const fields = [];
+        const values = [];
+
+        for (const key of [
+          "name",
+          "phone",
+          "whatsapp",
+          "vehicle_number",
+          "status",
+          "username"
+        ]) {
+          if (body[key] !== undefined) {
+            fields.push(`${key}=?`);
+            values.push(text(body[key]));
+          }
+        }
+
+        if (body.password) {
+          fields.push(
+            "password_hash=?"
+          );
+
+          values.push(
+            await sha256(
+              text(body.password)
+            )
+          );
+        }
+
+        if (
+          body.login_enabled !== undefined
+        ) {
+          fields.push(
+            "login_enabled=?"
+          );
+
+          values.push(
+            body.login_enabled ? 1 : 0
+          );
+        }
+
+        if (!fields.length) {
+          return json(
+            { error: "Nothing to update" },
+            400
+          );
+        }
+
+        values.push(
+          Number(match[1])
+        );
+
+        await env.DB
+          .prepare(
+            `UPDATE drivers SET ${fields.join(",")} WHERE id=?`
+          )
+          .bind(...values)
+          .run();
+
+        return json({
+          ok: true
+        });
+      }
+
+
+      /* =========================
+         ADMIN - ALL BOOKINGS
+         ========================= */
+
+      if (
+        url.pathname === "/api/admin/bookings" &&
+        request.method === "GET"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const result = await env.DB
+          .prepare(`
+            SELECT
+              b.*,
+              d.name driver_name,
+              d.phone driver_phone
+            FROM bookings b
+            LEFT JOIN drivers d
+              ON d.id=b.driver_id
+            ORDER BY
+              b.booking_date DESC,
+              b.booking_time DESC,
+              b.id DESC
+          `)
+          .all();
+
+        return json({
+          bookings: result.results
+        });
+      }
+
+
+      /* =========================
+         ADMIN - CREATE BOOKING
+         ========================= */
+
+      if (
+        url.pathname === "/api/admin/bookings" &&
+        request.method === "POST"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const body = await request.json();
+
+        const packagePrice =
+          Number(body.package_price);
+
+        if (
+          !text(body.customer_phone) ||
+          !text(body.pickup) ||
+          !text(body.destination) ||
+          !body.booking_date ||
+          !body.booking_time ||
+          ![
+            2500,
+            3000,
+            3500
+          ].includes(packagePrice)
+        ) {
+          return json({
+            error:
+              "Required booking details missing"
+          }, 400);
+        }
+
+        /*
+          Booking number is generated
+          automatically by the server.
+        */
+
+        const bookingNumber =
+          "DD-" +
+          Date.now()
+            .toString(36)
+            .toUpperCase();
+
+        await env.DB
+          .prepare(`
+            INSERT INTO bookings
+              (
+                customer_name,
+                customer_phone,
+                pickup,
+                destination,
+                booking_date,
+                booking_time,
+                price,
+                package_price,
+                driver_id,
+                status,
+                booking_number,
+                assigned_at
+              )
+            VALUES (
+              ?,?,?,?,?,?,?,?,?, 'ASSIGNED',?,CURRENT_TIMESTAMP
+            )
+          `)
+          .bind(
+            text(body.customer_name) ||
+              "Customer",
+            text(body.customer_phone),
+            text(body.pickup),
+            text(body.destination),
+            body.booking_date,
+            body.booking_time,
+            packagePrice,
+            packagePrice,
+            Number(body.driver_id) ||
+              null,
+            bookingNumber
+          )
+          .run();
+
+        return json({
+          ok: true,
+          booking_number:
+            bookingNumber
+        });
+      }
+
+
+      /* =========================
+         ADMIN - UPDATE BOOKING
+         ========================= */
+
+      match = url.pathname.match(
+        /^\/api\/admin\/bookings\/([^/]+)$/
+      );
+
+      if (
+        match &&
+        request.method === "PUT"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json(
+            { error: "Unauthorized" },
+            401
+          );
+        }
+
+        const bookingNumber =
+          decodeURIComponent(match[1]);
+
+        const existing = await env.DB
+          .prepare(
+            "SELECT id FROM bookings WHERE booking_number=?"
+          )
+          .bind(bookingNumber)
+          .first();
