@@ -7,10 +7,7 @@ const cors = {
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "content-type": "application/json",
-      ...cors
-    }
+    headers: { "content-type": "application/json", ...cors }
   });
 
 const text = (value) => String(value ?? "").trim();
@@ -20,7 +17,6 @@ async function sha256(value) {
     "SHA-256",
     new TextEncoder().encode(value)
   );
-
   return [...new Uint8Array(buffer)]
     .map((v) => v.toString(16).padStart(2, "0"))
     .join("");
@@ -33,17 +29,13 @@ function isAdmin(request, env) {
 
 async function getDriver(request, env) {
   const header = request.headers.get("Authorization") || "";
-
   if (!header.startsWith("Bearer ")) return null;
 
   const [id, signature] = header.slice(7).split(".");
-
   if (!id || !signature) return null;
 
   const driver = await env.DB
-    .prepare(
-      "SELECT * FROM drivers WHERE id=? AND login_enabled=1"
-    )
+    .prepare("SELECT * FROM drivers WHERE id=? AND login_enabled=1")
     .bind(id)
     .first();
 
@@ -64,34 +56,20 @@ async function driverToken(driver, env) {
 
 export default {
   async fetch(request, env) {
-
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: cors
-      });
+      return new Response(null, { status: 204, headers: cors });
     }
 
     const url = new URL(request.url);
 
-    /*
-      Non-API requests are served from the repository assets.
-      This allows admin.html and driver.html to be served by the Worker.
-    */
+    // Serve admin.html / driver.html / other repository assets.
     if (!url.pathname.startsWith("/api/")) {
       return env.ASSETS.fetch(request);
     }
 
     try {
-
-      /* =========================
-         DRIVER LOGIN
-         ========================= */
-
-      if (
-        url.pathname === "/api/driver/login" &&
-        request.method === "POST"
-      ) {
+      // DRIVER LOGIN
+      if (url.pathname === "/api/driver/login" && request.method === "POST") {
         const body = await request.json();
 
         const driver = await env.DB
@@ -104,14 +82,9 @@ export default {
         if (
           !driver ||
           !driver.password_hash ||
-          driver.password_hash !== await sha256(
-            text(body.password)
-          )
+          driver.password_hash !== await sha256(text(body.password))
         ) {
-          return json(
-            { error: "Invalid login" },
-            401
-          );
+          return json({ error: "Invalid login" }, 401);
         }
 
         return json({
@@ -124,23 +97,11 @@ export default {
         });
       }
 
-
-      /* =========================
-         DRIVER PROFILE
-         ========================= */
-
       const driver = await getDriver(request, env);
 
-      if (
-        url.pathname === "/api/driver/me" &&
-        request.method === "GET"
-      ) {
-        if (!driver) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
-        }
+      // DRIVER PROFILE
+      if (url.pathname === "/api/driver/me" && request.method === "GET") {
+        if (!driver) return json({ error: "Unauthorized" }, 401);
 
         return json({
           driver: {
@@ -151,93 +112,53 @@ export default {
         });
       }
 
-
-      /* =========================
-         DRIVER BOOKINGS
-         ========================= */
-
+      // DRIVER ASSIGNED BOOKINGS
       if (
         url.pathname === "/api/driver/bookings" &&
         request.method === "GET"
       ) {
-        if (!driver) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
-        }
+        if (!driver) return json({ error: "Unauthorized" }, 401);
 
         const result = await env.DB
           .prepare(`
             SELECT *
             FROM bookings
             WHERE driver_id=?
-              AND status IN (
-                'ASSIGNED',
-                'STARTED',
-                'COMPLETED',
-                'REVIEW'
-              )
+              AND status IN ('ASSIGNED','STARTED','COMPLETED','REVIEW')
             ORDER BY booking_date, booking_time
           `)
           .bind(driver.id)
           .all();
 
-        return json({
-          bookings: result.results
-        });
+        return json({ bookings: result.results });
       }
 
-
-      /* =========================
-         DRIVER COMPLETES TRIP
-         ========================= */
-
+      // DRIVER COMPLETES TRIP
       let match = url.pathname.match(
         /^\/api\/driver\/bookings\/([^/]+)\/complete$/
       );
 
-      if (
-        match &&
-        request.method === "POST"
-      ) {
-        if (!driver) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
-        }
+      if (match && request.method === "POST") {
+        if (!driver) return json({ error: "Unauthorized" }, 401);
 
         const body = await request.json();
-
-        const bookingNumber =
-          decodeURIComponent(match[1]);
+        const bookingNumber = decodeURIComponent(match[1]);
 
         const booking = await env.DB
           .prepare(
             "SELECT * FROM bookings WHERE booking_number=? AND driver_id=?"
           )
-          .bind(
-            bookingNumber,
-            driver.id
-          )
+          .bind(bookingNumber, driver.id)
           .first();
 
-        if (!booking) {
-          return json(
-            { error: "Booking not found" },
-            404
-          );
-        }
+        if (!booking) return json({ error: "Booking not found" }, 404);
 
         const startKm = Number(body.start_km);
         const endKm = Number(body.end_km);
-
         const waitingHours = Math.max(
           0,
           Number(body.waiting_hours || 0)
         );
-
         const waitingMinutes = Math.max(
           0,
           Number(body.waiting_minutes || 0)
@@ -248,10 +169,7 @@ export default {
           !Number.isFinite(endKm) ||
           endKm < startKm
         ) {
-          return json(
-            { error: "Invalid KM readings" },
-            400
-          );
+          return json({ error: "Invalid KM readings" }, 400);
         }
 
         if (
@@ -259,52 +177,28 @@ export default {
           !Number.isInteger(waitingMinutes) ||
           waitingMinutes > 59
         ) {
-          return json(
-            { error: "Invalid waiting time" },
-            400
-          );
+          return json({ error: "Invalid waiting time" }, 400);
         }
 
-        const distanceKm =
-          endKm - startKm;
+        const distanceKm = endKm - startKm;
+        const extraKm = Math.max(0, distanceKm - 10);
 
-        /*
-          First 10 km are included.
-          Beyond 10 km = Rs.100 per km.
-        */
+        // Rs.100 for each km beyond the included 10 km.
+        const extraKmAmount = extraKm * 100;
 
-        const extraKm =
-          Math.max(0, distanceKm - 10);
-
-        const extraKmAmount =
-          extraKm * 100;
-
-        /*
-          Waiting:
-          Rs.500 for every completed
-          15-minute block.
-        */
-
+        // Rs.500 for every completed 15-minute block.
         const totalWaitingMinutes =
-          waitingHours * 60 +
-          waitingMinutes;
+          waitingHours * 60 + waitingMinutes;
 
         const waitingCharge =
-          Math.floor(
-            totalWaitingMinutes / 15
-          ) * 500;
+          Math.floor(totalWaitingMinutes / 15) * 500;
 
-        const packagePrice =
-          Number(
-            booking.package_price ??
-            booking.price ??
-            0
-          );
+        const packagePrice = Number(
+          booking.package_price ?? booking.price ?? 0
+        );
 
         const calculatedAmount =
-          packagePrice +
-          extraKmAmount +
-          waitingCharge;
+          packagePrice + extraKmAmount + waitingCharge;
 
         await env.DB
           .prepare(`
@@ -350,58 +244,34 @@ export default {
         });
       }
 
-
-      /* =========================
-         ADMIN - DRIVER LIST
-         ========================= */
-
+      // ADMIN: DRIVER LIST
       if (
         url.pathname === "/api/admin/drivers" &&
         request.method === "GET"
       ) {
         if (!isAdmin(request, env)) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
+          return json({ error: "Unauthorized" }, 401);
         }
 
         const result = await env.DB
           .prepare(`
-            SELECT
-              id,
-              name,
-              phone,
-              whatsapp,
-              vehicle_number,
-              status,
-              username,
-              login_enabled,
-              created_at
+            SELECT id,name,phone,whatsapp,vehicle_number,status,
+                   username,login_enabled,created_at
             FROM drivers
             ORDER BY name
           `)
           .all();
 
-        return json({
-          drivers: result.results
-        });
+        return json({ drivers: result.results });
       }
 
-
-      /* =========================
-         ADMIN - CREATE DRIVER
-         ========================= */
-
+      // ADMIN: CREATE DRIVER LOGIN
       if (
         url.pathname === "/api/admin/drivers" &&
         request.method === "POST"
       ) {
         if (!isAdmin(request, env)) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
+          return json({ error: "Unauthorized" }, 401);
         }
 
         const body = await request.json();
@@ -413,39 +283,25 @@ export default {
           !text(body.password)
         ) {
           return json({
-            error:
-              "Name, phone, username and password are required"
+            error: "Name, phone, username and password are required"
           }, 400);
         }
 
-        const passwordHash =
-          await sha256(
-            text(body.password)
-          );
+        const passwordHash = await sha256(text(body.password));
 
         const result = await env.DB
           .prepare(`
             INSERT INTO drivers
-              (
-                name,
-                phone,
-                whatsapp,
-                vehicle_number,
-                status,
-                username,
-                password_hash,
-                login_enabled
-              )
+              (name,phone,whatsapp,vehicle_number,status,
+               username,password_hash,login_enabled)
             VALUES (?,?,?,?,?,?,?,1)
           `)
           .bind(
             text(body.name),
             text(body.phone),
-            text(body.whatsapp) ||
-              text(body.phone),
+            text(body.whatsapp) || text(body.phone),
             text(body.vehicle_number),
-            text(body.status) ||
-              "available",
+            text(body.status) || "available",
             text(body.username),
             passwordHash
           )
@@ -457,28 +313,15 @@ export default {
         });
       }
 
+      // ADMIN: UPDATE DRIVER
+      match = url.pathname.match(/^\/api\/admin\/drivers\/(\d+)$/);
 
-      /* =========================
-         ADMIN - UPDATE DRIVER
-         ========================= */
-
-      match = url.pathname.match(
-        /^\/api\/admin\/drivers\/(\d+)$/
-      );
-
-      if (
-        match &&
-        request.method === "PUT"
-      ) {
+      if (match && request.method === "PUT") {
         if (!isAdmin(request, env)) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
+          return json({ error: "Unauthorized" }, 401);
         }
 
         const body = await request.json();
-
         const fields = [];
         const values = [];
 
@@ -497,109 +340,61 @@ export default {
         }
 
         if (body.password) {
-          fields.push(
-            "password_hash=?"
-          );
-
-          values.push(
-            await sha256(
-              text(body.password)
-            )
-          );
+          fields.push("password_hash=?");
+          values.push(await sha256(text(body.password)));
         }
 
-        if (
-          body.login_enabled !== undefined
-        ) {
-          fields.push(
-            "login_enabled=?"
-          );
-
-          values.push(
-            body.login_enabled ? 1 : 0
-          );
+        if (body.login_enabled !== undefined) {
+          fields.push("login_enabled=?");
+          values.push(body.login_enabled ? 1 : 0);
         }
 
         if (!fields.length) {
-          return json(
-            { error: "Nothing to update" },
-            400
-          );
+          return json({ error: "Nothing to update" }, 400);
         }
 
-        values.push(
-          Number(match[1])
-        );
+        values.push(Number(match[1]));
 
         await env.DB
-          .prepare(
-            `UPDATE drivers SET ${fields.join(",")} WHERE id=?`
-          )
+          .prepare(`UPDATE drivers SET ${fields.join(",")} WHERE id=?`)
           .bind(...values)
           .run();
 
-        return json({
-          ok: true
-        });
+        return json({ ok: true });
       }
 
-
-      /* =========================
-         ADMIN - ALL BOOKINGS
-         ========================= */
-
+      // ADMIN: ALL BOOKINGS
       if (
         url.pathname === "/api/admin/bookings" &&
         request.method === "GET"
       ) {
         if (!isAdmin(request, env)) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
+          return json({ error: "Unauthorized" }, 401);
         }
 
         const result = await env.DB
           .prepare(`
-            SELECT
-              b.*,
-              d.name driver_name,
-              d.phone driver_phone
+            SELECT b.*, d.name driver_name, d.phone driver_phone
             FROM bookings b
-            LEFT JOIN drivers d
-              ON d.id=b.driver_id
-            ORDER BY
-              b.booking_date DESC,
-              b.booking_time DESC,
-              b.id DESC
+            LEFT JOIN drivers d ON d.id=b.driver_id
+            ORDER BY b.booking_date DESC,b.booking_time DESC,b.id DESC
           `)
           .all();
 
-        return json({
-          bookings: result.results
-        });
+        return json({ bookings: result.results });
       }
 
-
-      /* =========================
-         ADMIN - CREATE BOOKING
-         ========================= */
-
+      // ADMIN: CREATE BOOKING
       if (
         url.pathname === "/api/admin/bookings" &&
         request.method === "POST"
       ) {
         if (!isAdmin(request, env)) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
+          return json({ error: "Unauthorized" }, 401);
         }
 
         const body = await request.json();
-
-        const packagePrice =
-          Number(body.package_price);
+        const packagePrice = Number(body.package_price);
 
         if (
           !text(body.customer_phone) ||
@@ -607,53 +402,26 @@ export default {
           !text(body.destination) ||
           !body.booking_date ||
           !body.booking_time ||
-          ![
-            2500,
-            3000,
-            3500
-          ].includes(packagePrice)
+          ![2500, 3000, 3500].includes(packagePrice)
         ) {
           return json({
-            error:
-              "Required booking details missing"
+            error: "Required booking details missing"
           }, 400);
         }
 
-        /*
-          Booking number is generated
-          automatically by the server.
-        */
-
         const bookingNumber =
-          "DD-" +
-          Date.now()
-            .toString(36)
-            .toUpperCase();
+          "DD-" + Date.now().toString(36).toUpperCase();
 
         await env.DB
           .prepare(`
             INSERT INTO bookings
-              (
-                customer_name,
-                customer_phone,
-                pickup,
-                destination,
-                booking_date,
-                booking_time,
-                price,
-                package_price,
-                driver_id,
-                status,
-                booking_number,
-                assigned_at
-              )
-            VALUES (
-              ?,?,?,?,?,?,?,?,?, 'ASSIGNED',?,CURRENT_TIMESTAMP
-            )
+              (customer_name,customer_phone,pickup,destination,
+               booking_date,booking_time,price,package_price,
+               driver_id,status,booking_number,assigned_at)
+            VALUES (?,?,?,?,?,?,?,?,?,'ASSIGNED',?,CURRENT_TIMESTAMP)
           `)
           .bind(
-            text(body.customer_name) ||
-              "Customer",
+            text(body.customer_name) || "Customer",
             text(body.customer_phone),
             text(body.pickup),
             text(body.destination),
@@ -661,41 +429,26 @@ export default {
             body.booking_time,
             packagePrice,
             packagePrice,
-            Number(body.driver_id) ||
-              null,
+            Number(body.driver_id) || null,
             bookingNumber
           )
           .run();
 
         return json({
           ok: true,
-          booking_number:
-            bookingNumber
+          booking_number: bookingNumber
         });
       }
 
+      // ADMIN: UPDATE BOOKING
+      match = url.pathname.match(/^\/api\/admin\/bookings\/([^/]+)$/);
 
-      /* =========================
-         ADMIN - UPDATE BOOKING
-         ========================= */
-
-      match = url.pathname.match(
-        /^\/api\/admin\/bookings\/([^/]+)$/
-      );
-
-      if (
-        match &&
-        request.method === "PUT"
-      ) {
+      if (match && request.method === "PUT") {
         if (!isAdmin(request, env)) {
-          return json(
-            { error: "Unauthorized" },
-            401
-          );
+          return json({ error: "Unauthorized" }, 401);
         }
 
-        const bookingNumber =
-          decodeURIComponent(match[1]);
+        const bookingNumber = decodeURIComponent(match[1]);
 
         const existing = await env.DB
           .prepare(
@@ -703,3 +456,98 @@ export default {
           )
           .bind(bookingNumber)
           .first();
+
+        if (!existing) {
+          return json({ error: "Booking not found" }, 404);
+        }
+
+        const body = await request.json();
+        const fields = [];
+        const values = [];
+
+        if (body.driver_id !== undefined) {
+          fields.push("driver_id=?");
+          values.push(Number(body.driver_id) || null);
+        }
+
+        if (body.final_amount !== undefined) {
+          fields.push("final_amount=?");
+          values.push(Number(body.final_amount));
+        }
+
+        if (body.status !== undefined) {
+          fields.push("status=?");
+          values.push(text(body.status));
+        }
+
+        if (body.completion_notes !== undefined) {
+          fields.push("completion_notes=?");
+          values.push(text(body.completion_notes));
+        }
+
+        if (!fields.length) {
+          return json({ error: "Nothing to update" }, 400);
+        }
+
+        values.push(existing.id);
+
+        await env.DB
+          .prepare(
+            `UPDATE bookings SET ${fields.join(",")} WHERE id=?`
+          )
+          .bind(...values)
+          .run();
+
+        return json({ ok: true });
+      }
+
+      // ADMIN: MARK INVOICE SENT
+      match = url.pathname.match(
+        /^\/api\/admin\/bookings\/([^/]+)\/invoice-sent$/
+      );
+
+      if (match && request.method === "POST") {
+        if (!isAdmin(request, env)) {
+          return json({ error: "Unauthorized" }, 401);
+        }
+
+        await env.DB
+          .prepare(`
+            UPDATE bookings
+            SET status='INVOICE_SENT',
+                reviewed_at=CURRENT_TIMESTAMP
+            WHERE booking_number=?
+          `)
+          .bind(decodeURIComponent(match[1]))
+          .run();
+
+        return json({ ok: true });
+      }
+
+      // ADMIN: PRICING
+      if (
+        url.pathname === "/api/admin/pricing" &&
+        request.method === "GET"
+      ) {
+        if (!isAdmin(request, env)) {
+          return json({ error: "Unauthorized" }, 401);
+        }
+
+        return json({
+          packages: [2500, 3000, 3500],
+          included_km: 10,
+          extra_km_rate: 100,
+          waiting_block_minutes: 15,
+          waiting_block: 500
+        });
+      }
+
+      return json({ error: "Not found" }, 404);
+    } catch (error) {
+      return json(
+        { error: error?.message || "Server error" },
+        500
+      );
+    }
+  }
+};
