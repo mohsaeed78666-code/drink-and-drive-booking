@@ -1,34 +1,2222 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Drink & Drive Admin</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#155eef">
+<title>Drink & Drive Colombo — Admin</title>
+
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}.wrap{max-width:900px;margin:auto;padding:18px}
-.card{background:#fff;border-radius:16px;padding:18px;margin:12px 0;box-shadow:0 4px 18px #0001}
-input,select,button{width:100%;box-sizing:border-box;padding:13px;margin:6px 0;border-radius:10px;border:1px solid #ccd4e0}
-button{background:#1769ff;color:#fff;border:0;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.item{border:1px solid #e0e5ed;border-radius:12px;padding:12px;margin:10px 0}.muted{color:#667085;font-size:13px}
-@media(max-width:650px){.grid{grid-template-columns:1fr}}
-</style></head><body><div class="wrap">
-<h2>🚗 Drink & Drive — Admin</h2>
-<div class="card"><input id="key" placeholder="Admin key"><button onclick="login()">Open Admin</button><div id="msg"></div></div>
-<div id="app" style="display:none">
-<div class="card"><h3>Create Booking</h3><div class="grid">
-<input id="name" placeholder="Customer name"><input id="phone" placeholder="Customer mobile">
-<input id="date" type="date"><input id="time" type="time">
-<input id="pickup" placeholder="Pickup"><input id="drop" placeholder="Drop">
-<select id="pkg"><option value="2500">Rs. 2,500</option><option value="3000">Rs. 3,000</option><option value="3500">Rs. 3,500</option></select>
-<select id="driver"></select></div>
-<button onclick="createBooking()">Create & Assign Booking</button>
-<div class="muted">10 km included • Rs.100/km beyond 10 km • Rs.500 per completed 15 minutes waiting</div></div>
-<div class="card"><h3>Bookings</h3><button onclick="load()">Refresh</button><div id="list"></div></div>
-<div class="card"><h3>Drivers</h3><div id="drivers"></div></div>
-</div></div>
+:root{
+  --blue:#155eef;
+  --blue2:#0b43c5;
+  --ink:#14213d;
+  --muted:#667085;
+  --line:#e3e8f2;
+  --bg:#f4f7fc;
+  --ok:#16803c;
+  --warn:#a66b00;
+  --danger:#c62828;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:linear-gradient(180deg,#eef4ff,#fff 55%);
+  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  color:var(--ink);
+}
+
+.top{
+  background:linear-gradient(135deg,var(--blue2),var(--blue));
+  color:#fff;
+  padding:20px 15px 24px;
+  border-radius:0 0 24px 24px;
+  box-shadow:0 8px 25px #155eef30;
+}
+
+.brand{
+  font-size:20px;
+  font-weight:950;
+}
+
+.sub{
+  font-size:12px;
+  opacity:.92;
+  margin-top:4px;
+}
+
+.wrap{
+  max-width:950px;
+  margin:-10px auto 30px;
+  padding:0 11px;
+}
+
+.card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:15px;
+  margin:12px 0;
+  box-shadow:0 12px 35px #155eef14;
+}
+
+h2{
+  font-size:17px;
+  margin:0 0 13px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:11px;
+}
+
+.full{
+  grid-column:1/-1;
+}
+
+label{
+  display:block;
+  font-size:11px;
+  font-weight:900;
+  color:#46536a;
+  margin:0 0 6px;
+}
+
+input,
+select,
+textarea{
+  width:100%;
+  border:1px solid #d7deeb;
+  border-radius:11px;
+  padding:11px;
+  background:#fff;
+  font:inherit;
+  color:var(--ink);
+}
+
+input:focus,
+select:focus,
+textarea:focus{
+  outline:0;
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px #155eef18;
+}
+
+textarea{
+  min-height:75px;
+  resize:vertical;
+}
+
+.btn{
+  border:0;
+  border-radius:11px;
+  padding:12px 14px;
+  font-weight:900;
+  cursor:pointer;
+  width:100%;
+  font-size:12px;
+}
+
+.primary{
+  background:linear-gradient(135deg,var(--blue),#334155);
+  color:#fff;
+}
+
+.green{
+  background:linear-gradient(135deg,#16803c,#0f9d58);
+  color:#fff;
+}
+
+.ghost{
+  background:#eef4ff;
+  color:var(--blue);
+}
+
+.danger{
+  background:#fff0f0;
+  color:var(--danger);
+}
+
+.row{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.row>*{
+  flex:1;
+  min-width:140px;
+}
+
+.msg{
+  margin-top:9px;
+  padding:10px 11px;
+  border-radius:10px;
+  background:#f0f6ff;
+  color:#204c9c;
+  font-size:12px;
+}
+
+.hidden{
+  display:none!important;
+}
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+}
+
+.stat{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px;
+  background:#fbfcff;
+}
+
+.sl{
+  font-size:9px;
+  color:var(--muted);
+  font-weight:900;
+}
+
+.sv{
+  font-size:20px;
+  font-weight:950;
+  margin-top:3px;
+}
+
+.booking{
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:13px;
+  margin-top:10px;
+  background:#fbfcff;
+}
+
+.head{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.no{
+  font-size:15px;
+  font-weight:950;
+}
+
+.amount{
+  font-size:22px;
+  font-weight:950;
+  color:var(--blue);
+}
+
+.badge{
+  display:inline-block;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:9px;
+  font-weight:950;
+  background:#eef4ff;
+  color:var(--blue);
+  margin-left:5px;
+}
+
+.ok{
+  background:#eaf8ef;
+  color:var(--ok);
+}
+
+.warn{
+  background:#fff6df;
+  color:var(--warn);
+}
+
+.red{
+  background:#fff0f0;
+  color:var(--danger);
+}
+
+.small{
+  font-size:11px;
+  line-height:1.65;
+  color:var(--muted);
+}
+
+.review{
+  margin-top:11px;
+  padding:12px;
+  border:1px solid #d9e2f2;
+  border-radius:13px;
+  background:#f8faff;
+}
+
+.review-title{
+  font-size:12px;
+  font-weight:950;
+  margin-bottom:8px;
+}
+
+.stats2{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:7px;
+}
+
+.mini{
+  background:#fff;
+  border:1px solid #eceff4;
+  border-radius:9px;
+  padding:8px;
+}
+
+.ml{
+  font-size:9px;
+  color:var(--muted);
+  font-weight:850;
+}
+
+.mv{
+  font-size:13px;
+  font-weight:950;
+  margin-top:2px;
+}
+
+.photos{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:9px;
+}
+
+.photo{
+  display:block;
+  text-align:center;
+  text-decoration:none;
+  padding:9px;
+  border-radius:9px;
+  background:#eef4ff;
+  color:var(--blue);
+  font-size:10px;
+  font-weight:950;
+}
+
+.driver{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:11px;
+  margin-top:8px;
+}
+
+.search{
+  margin-bottom:8px;
+}
+
+.muted{
+  color:var(--muted);
+}
+
+@media(max-width:620px){
+  .grid{
+    grid-template-columns:1fr;
+  }
+
+  .full{
+    grid-column:auto;
+  }
+
+  .stats{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .photos{
+    grid-template-columns:1fr;
+  }
+
+  .row>*{
+    min-width:100%;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<header class="top">
+  <div class="brand">🚗 Drink & Drive Service Colombo</div>
+  <div class="sub">
+    ADMIN PORTAL • BOOKING → DRIVER → REVIEW → CUSTOMER
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ADMIN ACCESS -->
+<section class="card">
+  <h2>🔐 Admin Access</h2>
+
+  <div class="grid">
+
+    <div class="full">
+      <label>Admin Key</label>
+      <input
+        id="adminKey"
+        type="password"
+        autocomplete="off"
+        placeholder="Enter Admin Key"
+      >
+    </div>
+
+    <div>
+      <button class="btn primary" onclick="connect()">
+        🔗 Connect
+      </button>
+    </div>
+
+  </div>
+
+  <div id="connection" class="msg">
+    Not connected.
+  </div>
+</section>
+
+
+<!-- DASHBOARD -->
+<section class="card">
+  <h2>📊 Dashboard</h2>
+
+  <div class="stats">
+
+    <div class="stat">
+      <div class="sl">TOTAL</div>
+      <div class="sv" id="sTotal">0</div>
+    </div>
+
+    <div class="stat">
+      <div class="sl">PENDING</div>
+      <div class="sv" id="sPending">0</div>
+    </div>
+
+    <div class="stat">
+      <div class="sl">ACTIVE</div>
+      <div class="sv" id="sActive">0</div>
+    </div>
+
+    <div class="stat">
+      <div class="sl">REVIEW</div>
+      <div class="sv" id="sReview">0</div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- PRICING -->
+<section class="card">
+
+  <h2>⚙️ Pricing Settings</h2>
+
+  <div class="grid">
+
+    <div class="full">
+      <label>
+        Base Price — Up to 10 KM (Rs.)
+      </label>
+
+      <input
+        id="price1"
+        type="number"
+        min="0"
+        step="1"
+        inputmode="numeric"
+        placeholder="2500"
+      >
+    </div>
+
+
+    <div class="full">
+      <label>
+        Additional KM — Per KM after 10 KM (Rs.)
+      </label>
+
+      <input
+        id="extraKmRate"
+        type="number"
+        min="0"
+        step="1"
+        inputmode="numeric"
+        placeholder="100"
+      >
+    </div>
+
+
+    <div class="full">
+      <label>
+        Waiting Charge — Per Completed 15 Minutes (Rs.)
+      </label>
+
+      <input
+        id="waitingBlock"
+        type="number"
+        min="0"
+        step="1"
+        inputmode="numeric"
+        placeholder="500"
+      >
+    </div>
+
+
+    <div class="full">
+
+      <div class="small">
+
+        <b>Pricing Rules</b><br>
+
+        Base price covers the first
+        <b>10 KM</b>.<br>
+
+        Every KM beyond 10 KM uses the
+        editable Additional KM rate.<br>
+
+        Waiting is charged for every completed
+        <b>15-minute</b> block.
+
+      </div>
+
+    </div>
+
+
+    <div class="full">
+
+      <button
+        class="btn primary"
+        onclick="savePricing()"
+      >
+        💾 SAVE PRICING
+      </button>
+
+    </div>
+
+  </div>
+
+  <div
+    id="pricingMsg"
+    class="msg hidden"
+  ></div>
+
+</section>
+
+
+<!-- CREATE BOOKING -->
+<section class="card">
+
+  <h2>➕ Create Booking</h2>
+
+  <div class="grid">
+
+    <div>
+      <label>Customer Name</label>
+
+      <input
+        id="customerName"
+        placeholder="Customer"
+      >
+    </div>
+
+
+    <div>
+      <label>Customer Mobile / WhatsApp *</label>
+
+      <input
+        id="customerPhone"
+        type="tel"
+        inputmode="tel"
+        placeholder="07XXXXXXXX"
+      >
+    </div>
+
+
+    <div>
+      <label>Booking Date *</label>
+
+      <input
+        id="bookingDate"
+        type="date"
+      >
+    </div>
+
+
+    <div>
+      <label>Booking Time *</label>
+
+      <input
+        id="bookingTime"
+        type="time"
+      >
+    </div>
+
+
+    <div>
+      <label>Package *</label>
+
+      <select id="packagePrice">
+
+        <option value="2500">
+          Rs. 2,500
+        </option>
+
+        <option value="3000">
+          Rs. 3,000
+        </option>
+
+        <option value="3500">
+          Rs. 3,500
+        </option>
+
+      </select>
+    </div>
+
+
+    <div>
+      <label>Assign Driver *</label>
+
+      <select id="driverId">
+        <option value="">
+          Select driver
+        </option>
+      </select>
+    </div>
+
+
+    <div class="full">
+      <label>Pickup *</label>
+
+      <input
+        id="pickup"
+        placeholder="Pickup location"
+      >
+    </div>
+
+
+    <div class="full">
+      <label>Drop *</label>
+
+      <input
+        id="destination"
+        placeholder="Drop location"
+      >
+    </div>
+
+
+    <div class="full">
+
+      <button
+        class="btn primary"
+        onclick="createBooking()"
+      >
+        🚗 CREATE & ASSIGN BOOKING
+      </button>
+
+    </div>
+
+  </div>
+
+  <div
+    id="createMsg"
+    class="msg hidden"
+  ></div>
+
+</section>
+
+
+<!-- BOOKINGS -->
+<section class="card">
+
+  <h2>
+    📋 Bookings
+    <span
+      class="small"
+      id="bookingCount"
+    >
+      0
+    </span>
+  </h2>
+
+  <input
+    id="search"
+    class="search"
+    placeholder="Search booking, customer, location or driver..."
+    oninput="renderBookings()"
+  >
+
+  <div id="bookings">
+    <div class="small">
+      Connect to load bookings.
+    </div>
+  </div>
+
+</section>
+
+
+<!-- DRIVER ACCOUNTS -->
+<section class="card">
+
+  <h2>👨‍✈️ Driver Accounts</h2>
+
+  <div class="grid">
+
+    <div>
+      <label>Name *</label>
+
+      <input
+        id="newDriverName"
+        placeholder="Driver name"
+      >
+    </div>
+
+
+    <div>
+      <label>Phone *</label>
+
+      <input
+        id="newDriverPhone"
+        placeholder="07XXXXXXXX"
+      >
+    </div>
+
+
+    <div>
+      <label>WhatsApp</label>
+
+      <input
+        id="newDriverWhatsapp"
+        placeholder="07XXXXXXXX"
+      >
+    </div>
+
+
+    <div>
+      <label>Username *</label>
+
+      <input
+        id="newDriverUsername"
+        placeholder="Login username"
+      >
+    </div>
+
+
+    <div>
+      <label>Password *</label>
+
+      <input
+        id="newDriverPassword"
+        type="password"
+        placeholder="Login password"
+      >
+    </div>
+
+
+    <div>
+      <label>Vehicle Number</label>
+
+      <input
+        id="newDriverVehicle"
+        placeholder="Vehicle number"
+      >
+    </div>
+
+
+    <div class="full">
+
+      <button
+        class="btn primary"
+        onclick="createDriver()"
+      >
+        ➕ CREATE DRIVER LOGIN
+      </button>
+
+    </div>
+
+  </div>
+
+  <div
+    id="driverMsg"
+    class="msg hidden"
+  ></div>
+
+  <div
+    id="drivers"
+    style="margin-top:10px"
+  ></div>
+
+</section>
+
+</main>
+
+
 <script>
-const API="/api";let KEY=sessionStorage.getItem("adminKey")||"";const $=x=>document.getElementById(x);$("key").value=KEY;
-async function req(p,o={}){o.headers={...(o.headers||{}),"X-Admin-Key":KEY,"Content-Type":"application/json"};const r=await fetch(API+p,o),j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j}
-async function login(){KEY=$("key").value.trim();try{await req("/admin/drivers");sessionStorage.setItem("adminKey",KEY);$("app").style.display="block";$("msg").textContent="Connected";load()}catch(e){$("msg").textContent=e.message}}
-async function load(){try{const [b,d]=await Promise.all([req("/admin/bookings"),req("/admin/drivers")]);$("driver").innerHTML=d.drivers.map(x=>`<option value="${x.id}">${x.name} — ${x.phone}</option>`).join("");$("drivers").innerHTML=d.drivers.map(x=>`<div class=item><b>${x.name}</b> — ${x.phone}<br><span class=muted>Username: ${x.username||"Not set"} | Login: ${x.login_enabled?"Enabled":"Disabled"}</span></div>`).join("");$("list").innerHTML=b.bookings.map(x=>`<div class=item><b>${x.booking_number}</b> — ${x.status}<br>${x.customer_phone} • ${x.pickup} → ${x.destination}<br>Driver: ${x.driver_name||"-"}<br>Package: Rs.${x.package_price||x.price} • Calculated: Rs.${x.calculated_amount||0} • Final: Rs.${x.final_amount||0}${x.status==="COMPLETED"?`<input id="f-${x.booking_number}" type="number" value="${x.final_amount||x.calculated_amount||0}"><button onclick="approve('${x.booking_number}')">Approve & Send WhatsApp</button>`:""}</div>`).join("")}catch(e){$("list").textContent=e.message}}
-async function createBooking(){const b={customer_name:$("name").value,customer_phone:$("phone").value,pickup:$("pickup").value,destination:$("drop").value,booking_date:$("date").value,booking_time:$("time").value,package_price:+$("pkg").value,driver_id:+$("driver").value};const r=await req("/admin/bookings",{method:"POST",body:JSON.stringify(b)});alert("Booking "+r.booking_number+" created");load()}
-async function approve(no){const amt=+$("f-"+no).value;await req("/admin/bookings/"+encodeURIComponent(no),{method:"PUT",body:JSON.stringify({final_amount:amt,status:"APPROVED"})});const b=(await req("/admin/bookings")).bookings.find(x=>x.booking_number===no);const phone=String(b.customer_phone).replace(/\D/g,"");const msg=encodeURIComponent(`Drink & Drive Booking ${no}\nFinal Amount: Rs. ${amt.toLocaleString()}\nThank you.`);location.href=`https://wa.me/${phone}?text=${msg}`}
-if(KEY){req("/admin/drivers").then(()=>{$("app").style.display="block";load()}).catch(()=>{})}
-</script></body></html>
+
+const API='/api';
+
+let bookings=[];
+
+let drivers=[];
+
+let pricing={
+  packages:[2500,3000,3500],
+  included_km:10,
+  extra_km_rate:100,
+  waiting_block_minutes:15,
+  waiting_block:500
+};
+
+
+const $=id=>document.getElementById(id);
+
+
+const money=n=>
+  'Rs. '+Number(n||0).toLocaleString(
+    'en-LK',
+    {maximumFractionDigits:0}
+  );
+
+
+const esc=s=>
+  String(s??'').replace(
+    /[&<>"']/g,
+    m=>({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[m])
+  );
+
+
+const attr=s=>
+  String(s??'')
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/\n/g,' ');
+
+
+function adminKey(){
+
+  return sessionStorage.getItem(
+    'DD_ADMIN_KEY'
+  )||'';
+
+}
+
+
+function msg(id,text,good=false){
+
+  $(id).classList.remove('hidden');
+
+  $(id).textContent=text;
+
+  $(id).style.background=
+    good ? '#eaf8ef' : '#f0f6ff';
+
+  $(id).style.color=
+    good ? '#16803c' : '#204c9c';
+
+}
+
+
+async function api(path,opt={}){
+
+  const h=
+    new Headers(
+      opt.headers||{}
+    );
+
+  if(
+    !h.has('Content-Type') &&
+    !(opt.body instanceof FormData)
+  ){
+
+    h.set(
+      'Content-Type',
+      'application/json'
+    );
+
+  }
+
+  h.set(
+    'X-Admin-Key',
+    adminKey()
+  );
+
+  const r=
+    await fetch(
+      API+path,
+      {
+        ...opt,
+        headers:h
+      }
+    );
+
+  let d={};
+
+  try{
+
+    d=await r.json();
+
+  }catch(e){}
+
+  if(!r.ok){
+
+    throw new Error(
+      d.error ||
+      ('Request failed: '+r.status)
+    );
+
+  }
+
+  return d;
+
+}
+
+
+function connect(){
+
+  const k=
+    $('adminKey')
+      .value
+      .trim();
+
+  if(!k){
+
+    return msg(
+      'connection',
+      'Enter the Admin Key.'
+    );
+
+  }
+
+  sessionStorage.setItem(
+    'DD_ADMIN_KEY',
+    k
+  );
+
+  refreshAll();
+
+}
+
+
+async function refreshAll(){
+
+  if(!adminKey()){
+
+    return msg(
+      'connection',
+      'Enter the Admin Key to connect.'
+    );
+
+  }
+
+  try{
+
+    await loadPricing();
+
+    await loadDrivers();
+
+    await loadBookings();
+
+    msg(
+      'connection',
+      '✅ Connected to live Admin system.',
+      true
+    );
+
+  }catch(e){
+
+    msg(
+      'connection',
+      'Connection failed: '+e.message
+    );
+
+  }
+
+}
+
+
+async function loadPricing(){
+
+  const d=
+    await api(
+      '/admin/pricing'
+    );
+
+  pricing=d;
+
+  if(
+    Array.isArray(d.packages) &&
+    d.packages.length
+  ){
+
+    $('price1').value=
+      d.packages[0];
+
+  }else{
+
+    $('price1').value=2500;
+
+  }
+
+  $('extraKmRate').value=
+    d.extra_km_rate ??
+    100;
+
+  $('waitingBlock').value=
+    d.waiting_block ??
+    500;
+
+  $('packagePrice').innerHTML=
+    (d.packages||[
+      2500,
+      3000,
+      3500
+    ]).map(
+      x=>
+        `<option value="${Number(x)}">
+          ${money(x)}
+        </option>`
+    ).join('');
+
+}
+
+
+async function savePricing(){
+
+  const base=
+    Number(
+      $('price1').value
+    );
+
+  const extra=
+    Number(
+      $('extraKmRate').value
+    );
+
+  const waiting=
+    Number(
+      $('waitingBlock').value
+    );
+
+  if(
+    !Number.isFinite(base) ||
+    base<0 ||
+    !Number.isFinite(extra) ||
+    extra<0 ||
+    !Number.isFinite(waiting) ||
+    waiting<0
+  ){
+
+    return msg(
+      'pricingMsg',
+      'Enter valid pricing values.'
+    );
+
+  }
+
+  try{
+
+    await api(
+      '/admin/pricing',
+      {
+        method:'PUT',
+        body:JSON.stringify({
+          base_price:base,
+          extra_km_rate:extra,
+          waiting_block:waiting
+        })
+      }
+    );
+
+    msg(
+      'pricingMsg',
+      '✅ Pricing saved successfully.',
+      true
+    );
+
+    await loadPricing();
+
+  }catch(e){
+
+    msg(
+      'pricingMsg',
+      'Could not save pricing: '+e.message
+    );
+
+  }
+
+}
+
+
+async function loadDrivers(){
+
+  const d=
+    await api(
+      '/admin/drivers'
+    );
+
+  drivers=
+    d.drivers||[];
+
+  $('driverId').innerHTML=
+    '<option value="">Select driver</option>'+
+    drivers.map(
+      x=>
+        `<option value="${esc(x.id)}">
+          ${esc(x.name)}
+          — ${esc(x.phone||'')}
+        </option>`
+    ).join('');
+
+  renderDrivers();
+
+}
+
+
+function renderDrivers(){
+
+  $('drivers').innerHTML=
+    drivers.length
+      ?
+        drivers.map(
+          d=>
+            `<div class="driver">
+
+              <b>
+                👨‍✈️ ${esc(d.name)}
+              </b>
+
+              <span class="badge ${
+                String(d.status).toLowerCase()==='available'
+                ? 'ok'
+                : ''
+              }">
+                ${esc(d.status||'available')}
+              </span>
+
+              <div class="small">
+
+                Phone:
+                ${esc(d.phone||'—')}
+                <br>
+
+                WhatsApp:
+                ${esc(d.whatsapp||d.phone||'—')}
+                <br>
+
+                Username:
+                ${esc(d.username||'Not set')}
+                <br>
+
+                Login:
+                ${Number(d.login_enabled)
+                  ? 'Enabled'
+                  : 'Disabled'}
+
+              </div>
+
+              <div
+                class="row"
+                style="margin-top:8px"
+              >
+
+                <button
+                  class="btn ghost"
+                  onclick="editDriver(${d.id})"
+                >
+                  ✏️ Edit Driver
+                </button>
+
+              </div>
+
+            </div>`
+        ).join('')
+      :
+        '<div class="small">No drivers found.</div>';
+
+}
+
+
+async function createDriver(){
+
+  const p={
+
+    name:
+      $('newDriverName')
+        .value
+        .trim(),
+
+    phone:
+      $('newDriverPhone')
+        .value
+        .trim(),
+
+    whatsapp:
+      $('newDriverWhatsapp')
+        .value
+        .trim(),
+
+    username:
+      $('newDriverUsername')
+        .value
+        .trim(),
+
+    password:
+      $('newDriverPassword')
+        .value,
+
+    vehicle_number:
+      $('newDriverVehicle')
+        .value
+        .trim()
+
+  };
+
+  if(
+    !p.name ||
+    !p.phone ||
+    !p.username ||
+    !p.password
+  ){
+
+    return msg(
+      'driverMsg',
+      'Name, phone, username and password are required.'
+    );
+
+  }
+
+  try{
+
+    await api(
+      '/admin/drivers',
+      {
+        method:'POST',
+        body:JSON.stringify(p)
+      }
+    );
+
+    msg(
+      'driverMsg',
+      '✅ Driver account created.',
+      true
+    );
+
+    [
+      'newDriverName',
+      'newDriverPhone',
+      'newDriverWhatsapp',
+      'newDriverUsername',
+      'newDriverPassword',
+      'newDriverVehicle'
+    ].forEach(
+      id=>$(id).value=''
+    );
+
+    await loadDrivers();
+
+  }catch(e){
+
+    msg(
+      'driverMsg',
+      'Could not create driver: '+e.message
+    );
+
+  }
+
+}
+
+
+async function editDriver(id){
+
+  const d=
+    drivers.find(
+      x=>Number(x.id)===Number(id)
+    );
+
+  if(!d)return;
+
+  const name=
+    prompt(
+      'Driver name:',
+      d.name||''
+    );
+
+  if(name===null)return;
+
+  const phone=
+    prompt(
+      'Phone:',
+      d.phone||''
+    );
+
+  if(phone===null)return;
+
+  const whatsapp=
+    prompt(
+      'WhatsApp:',
+      d.whatsapp||d.phone||''
+    );
+
+  if(whatsapp===null)return;
+
+  const username=
+    prompt(
+      'Username:',
+      d.username||''
+    );
+
+  if(username===null)return;
+
+  const password=
+    prompt(
+      'New password (leave blank to keep current):',
+      ''
+    );
+
+  if(password===null)return;
+
+  const enabled=
+    confirm(
+      'OK = login enabled. Cancel = login disabled.'
+    );
+
+  const body={
+    name,
+    phone,
+    whatsapp,
+    username,
+    login_enabled:enabled
+  };
+
+  if(password){
+
+    body.password=password;
+
+  }
+
+  try{
+
+    await api(
+      '/admin/drivers/'+id,
+      {
+        method:'PUT',
+        body:JSON.stringify(body)
+      }
+    );
+
+    alert(
+      'Driver updated.'
+    );
+
+    await loadDrivers();
+
+  }catch(e){
+
+    alert(
+      'Could not update driver: '+e.message
+    );
+
+  }
+
+}
+
+
+async function loadBookings(){
+
+  const d=
+    await api(
+      '/admin/bookings'
+    );
+
+  bookings=
+    d.bookings||[];
+
+  renderBookings();
+
+  updateStats();
+
+}
+
+
+function statusClass(s){
+
+  s=
+    String(s||'')
+      .toUpperCase();
+
+  if(s==='COMPLETED')
+    return 'warn';
+
+  if(
+    [
+      'REVIEW',
+      'REVIEWED',
+      'INVOICE_SENT'
+    ].includes(s)
+  )
+    return 'ok';
+
+  if(s==='CANCELLED')
+    return 'red';
+
+  return '';
+
+}
+
+
+function renderBookings(){
+
+  const q=
+    $('search')
+      .value
+      .trim()
+      .toLowerCase();
+
+  const list=
+    bookings.filter(
+      b=>
+        !q ||
+        [
+          b.booking_number,
+          b.customer_name,
+          b.customer_phone,
+          b.pickup,
+          b.destination,
+          b.driver_name,
+          b.status
+        ]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    );
+
+  $('bookingCount').textContent=
+    list.length+
+    ' booking'+
+    (
+      list.length===1
+        ? ''
+        : 's'
+    );
+
+  $('bookings').innerHTML=
+    list.length
+      ?
+        list.map(renderBooking).join('')
+      :
+        '<div class="small">No matching bookings.</div>';
+
+}
+
+
+function renderBooking(b){
+
+  const st=
+    String(
+      b.status||'NEW'
+    ).toUpperCase();
+
+  const pkg=
+    Number(
+      b.package_price ??
+      b.price ??
+      0
+    );
+
+  const calc=
+    Number(
+      b.calculated_amount ??
+      0
+    );
+
+  const final=
+    Number(
+      b.final_amount ??
+      0
+    );
+
+  const completed=
+    (
+      b.start_km!==null &&
+      b.start_km!==undefined
+    ) ||
+    (
+      b.end_km!==null &&
+      b.end_km!==undefined
+    ) ||
+    [
+      'COMPLETED',
+      'REVIEWED',
+      'INVOICE_SENT'
+    ].includes(st);
+
+  const approved=
+    final>=0 &&
+    [
+      'REVIEWED',
+      'INVOICE_SENT'
+    ].includes(st) &&
+    final>0;
+
+  const assignedDriver=
+    b.driver_name ||
+    'Not assigned';
+
+  let review='';
+
+  if(completed){
+
+    review=`
+
+      <div class="review">
+
+        <div class="review-title">
+          🧾 DRIVER COMPLETION — ADMIN REVIEW
+        </div>
+
+        <div class="stats2">
+
+          <div class="mini">
+            <div class="ml">START KM</div>
+            <div class="mv">
+              ${esc(b.start_km??'—')}
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">END KM</div>
+            <div class="mv">
+              ${esc(b.end_km??'—')}
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">DISTANCE</div>
+            <div class="mv">
+              ${esc(b.distance_km??'—')} km
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">WAITING</div>
+            <div class="mv">
+              ${esc(b.waiting_hours||0)}h
+              ${esc(b.waiting_minutes||0)}m
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">EXTRA KM</div>
+            <div class="mv">
+              ${money(b.extra_km_amount)}
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">WAITING FEE</div>
+            <div class="mv">
+              ${money(b.waiting_charge)}
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">DRIVER CALCULATED</div>
+            <div class="mv">
+              ${money(calc)}
+            </div>
+          </div>
+
+          <div class="mini">
+            <div class="ml">FINAL FARE</div>
+            <div class="mv">
+              ${
+                final
+                  ? money(final)
+                  : 'Not approved'
+              }
+            </div>
+          </div>
+
+        </div>
+
+        ${photoButtons(b)}
+
+        <div style="margin-top:10px">
+
+          <label>
+            ADMIN FINAL FARE (Rs.)
+          </label>
+
+          <input
+            id="fare-${attr(b.booking_number)}"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            value="${final||calc}"
+          >
+
+        </div>
+
+        <div
+          style="margin-top:9px"
+          class="row"
+        >
+
+          <button
+            class="btn primary"
+            onclick="approve('${attr(b.booking_number)}')"
+          >
+            ${
+              approved
+                ? '✏️ UPDATE FINAL FARE'
+                : '✅ APPROVE & SAVE FINAL FARE'
+            }
+          </button>
+
+          ${
+            final
+              ?
+                `<button
+                  class="btn primary"
+                  onclick="whatsapp(
+                    '${attr(b.customer_phone)}',
+                    '${attr(b.booking_number)}',
+                    ${final}
+                  )"
+                >
+                  💬 WHATSAPP CUSTOMER
+                </button>`
+              :
+                ''
+          }
+
+        </div>
+
+      </div>
+
+    `;
+
+  }else{
+
+    review=`
+
+      <div
+        class="small"
+        style="margin-top:9px"
+      >
+        ⏳ Waiting for driver to complete this booking.
+      </div>
+
+    `;
+
+  }
+
+
+  return `
+
+    <div class="booking">
+
+      <div class="head">
+
+        <div class="no">
+
+          ${esc(
+            b.booking_number||'—'
+          )}
+
+          <span
+            class="badge ${statusClass(st)}"
+          >
+            ${esc(st)}
+          </span>
+
+        </div>
+
+        <div class="amount">
+          ${money(
+            final ||
+            calc ||
+            pkg
+          )}
+        </div>
+
+      </div>
+
+
+      <div
+        class="small"
+        style="margin-top:8px"
+      >
+
+        <b>Customer:</b>
+        ${esc(
+          b.customer_name||'Customer'
+        )}
+        <br>
+
+        <b>Mobile:</b>
+        ${esc(
+          b.customer_phone||'—'
+        )}
+        <br>
+
+        <b>Pickup:</b>
+        ${esc(
+          b.pickup||'—'
+        )}
+        <br>
+
+        <b>Drop:</b>
+        ${esc(
+          b.destination||'—'
+        )}
+        <br>
+
+        <b>Date:</b>
+        ${esc(
+          b.booking_date||'—'
+        )}
+        <br>
+
+        <b>Time:</b>
+        ${esc(
+          b.booking_time||'—'
+        )}
+        <br>
+
+        <b>Driver:</b>
+        ${esc(
+          assignedDriver
+        )}
+
+      </div>
+
+
+      <div
+        class="small"
+        style="margin-top:7px"
+      >
+
+        <b>Package:</b>
+        ${money(pkg)}
+
+        &nbsp; • &nbsp;
+
+        <b>Calculated:</b>
+        ${money(calc)}
+
+        &nbsp; • &nbsp;
+
+        <b>Final:</b>
+        ${
+          final
+            ? money(final)
+            : '—'
+        }
+
+      </div>
+
+
+      ${review}
+
+
+      <div
+        class="row"
+        style="margin-top:9px"
+      >
+
+        <button
+          class="btn ghost"
+          onclick="editBooking(
+            '${attr(b.booking_number)}'
+          )"
+        >
+          ✏️ Edit Booking
+        </button>
+
+
+        ${
+          b.customer_phone
+            ?
+              `<button
+                class="btn ghost"
+                onclick="whatsapp(
+                  '${attr(b.customer_phone)}',
+                  '${attr(b.booking_number)}',
+                  ${final||calc||pkg}
+                )"
+              >
+                💬 WhatsApp
+              </button>`
+            :
+              ''
+        }
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+function photoButtons(b){
+
+  let s='';
+
+  if(b.start_meter_photo){
+
+    s+=photoLink(
+      b.start_meter_photo,
+      '📷 START KM PHOTO'
+    );
+
+  }
+
+  if(b.end_meter_photo){
+
+    s+=photoLink(
+      b.end_meter_photo,
+      '📷 END KM PHOTO'
+    );
+
+  }
+
+  return s
+    ? `<div class="photos">${s}</div>`
+    : '';
+
+}
+
+
+function photoLink(v,label){
+
+  let u=
+    String(v);
+
+  if(
+    !/^https?:\/\//i.test(u) &&
+    !u.startsWith('data:')
+  ){
+
+    return `
+      <span
+        class="photo"
+        title="${esc(u)}"
+      >
+        ${label} — stored
+      </span>
+    `;
+
+  }
+
+  return `
+    <a
+      class="photo"
+      target="_blank"
+      rel="noopener"
+      href="${esc(u)}"
+    >
+      ${label}
+    </a>
+  `;
+
+}
+
+
+async function approve(no){
+
+  const el=
+    $('fare-'+no);
+
+  const amount=
+    Number(
+      el &&
+      el.value
+    );
+
+  if(
+    !Number.isFinite(amount) ||
+    amount<0
+  ){
+
+    return alert(
+      'Enter a valid final fare.'
+    );
+
+  }
+
+  try{
+
+    await api(
+      '/admin/bookings/'+
+      encodeURIComponent(no),
+      {
+        method:'PUT',
+        body:JSON.stringify({
+          final_amount:amount,
+          status:'REVIEWED'
+        })
+      }
+    );
+
+    alert(
+      '✅ Final fare saved: '+
+      money(amount)
+    );
+
+    await loadBookings();
+
+  }catch(e){
+
+    alert(
+      'Could not save final fare: '+
+      e.message
+    );
+
+  }
+
+}
+
+
+async function editBooking(no){
+
+  const b=
+    bookings.find(
+      x=>x.booking_number===no
+    );
+
+  if(!b)return;
+
+  const driverList=
+    drivers
+      .map(
+        d=>
+          d.id+
+          ': '+
+          d.name
+      )
+      .join('\n');
+
+  const driver=
+    prompt(
+      'Driver ID:\n'+
+      driverList+
+      '\n\nEnter driver ID:',
+      b.driver_id??''
+    );
+
+  if(driver===null)return;
+
+  const status=
+    prompt(
+      'Status:',
+      b.status||'ASSIGNED'
+    );
+
+  if(status===null)return;
+
+  const notes=
+    prompt(
+      'Completion/Admin notes:',
+      b.completion_notes||''
+    );
+
+  if(notes===null)return;
+
+  const body={
+    driver_id:
+      driver
+        ? Number(driver)
+        : null,
+
+    status,
+
+    completion_notes:
+      notes
+  };
+
+  try{
+
+    await api(
+      '/admin/bookings/'+
+      encodeURIComponent(no),
+      {
+        method:'PUT',
+        body:JSON.stringify(body)
+      }
+    );
+
+    alert(
+      'Booking updated.'
+    );
+
+    await loadBookings();
+
+  }catch(e){
+
+    alert(
+      'Could not update booking: '+
+      e.message
+    );
+
+  }
+
+}
+
+
+function whatsapp(
+  phone,
+  no,
+  amount
+){
+
+  let n=
+    String(phone||'')
+      .replace(/\D/g,'');
+
+  if(n.startsWith('0')){
+
+    n=
+      '94'+
+      n.slice(1);
+
+  }
+
+  if(!n.startsWith('94')){
+
+    n=
+      '94'+n;
+
+  }
+
+  const text=
+`🚗 Drink And Drive Service Colombo
+
+Booking No: ${no}
+
+Final Fare: ${money(amount)}
+
+Thank you for using Drink & Drive Service Colombo.`;
+
+  window.location.href=
+    'https://wa.me/'+
+    n+
+    '?text='+
+    encodeURIComponent(text);
+
+}
+
+
+async function createBooking(){
+
+  const p={
+
+    customer_name:
+      $('customerName')
+        .value
+        .trim() ||
+      'Customer',
+
+    customer_phone:
+      $('customerPhone')
+        .value
+        .trim(),
+
+    pickup:
+      $('pickup')
+        .value
+        .trim(),
+
+    destination:
+      $('destination')
+        .value
+        .trim(),
+
+    booking_date:
+      $('bookingDate')
+        .value,
+
+    booking_time:
+      $('bookingTime')
+        .value,
+
+    package_price:
+      Number(
+        $('packagePrice')
+          .value
+      ),
+
+    included_km:10,
+
+    driver_id:
+      $('driverId')
+        .value
+        ? Number(
+            $('driverId')
+              .value
+          )
+        : null
+
+  };
+
+
+  if(
+    !p.customer_phone ||
+    !p.pickup ||
+    !p.destination ||
+    !p.booking_date ||
+    !p.booking_time ||
+    !p.driver_id
+  ){
+
+    return msg(
+      'createMsg',
+      'Complete all required fields.'
+    );
+
+  }
+
+
+  try{
+
+    const d=
+      await api(
+        '/admin/bookings',
+        {
+          method:'POST',
+          body:JSON.stringify(p)
+        }
+      );
+
+    msg(
+      'createMsg',
+      '✅ Booking created: '+
+      (d.booking_number||''),
+      true
+    );
+
+    [
+      'customerName',
+      'customerPhone',
+      'pickup',
+      'destination'
+    ].forEach(
+      id=>$(id).value=''
+    );
+
+    await loadBookings();
+
+  }catch(e){
+
+    msg(
+      'createMsg',
+      'Could not create booking: '+
+      e.message
+    );
+
+  }
+
+}
+
+
+function updateStats(){
+
+  const upper=
+    b=>
+      String(
+        b.status||''
+      ).toUpperCase();
+
+  $('sTotal').textContent=
+    bookings.length;
+
+  $('sPending').textContent=
+    bookings.filter(
+      b=>
+        upper(b)==='ASSIGNED'
+    ).length;
+
+  $('sActive').textContent=
+    bookings.filter(
+      b=>
+        [
+          'STARTED',
+          'IN_PROGRESS'
+        ].includes(
+          upper(b)
+        )
+    ).length;
+
+  $('sReview').textContent=
+    bookings.filter(
+      b=>
+        upper(b)==='COMPLETED' &&
+        !Number(
+          b.final_amount||0
+        )
+    ).length;
+
+}
+
+
+function setDateTime(){
+
+  const d=
+    new Date();
+
+  $('bookingDate').value=
+    d.toISOString()
+      .slice(0,10);
+
+  $('bookingTime').value=
+    String(
+      d.getHours()
+    ).padStart(2,'0')+
+    ':'+
+    String(
+      d.getMinutes()
+    ).padStart(2,'0');
+
+}
+
+
+$('adminKey').value=
+  sessionStorage.getItem(
+    'DD_ADMIN_KEY'
+  )||'';
+
+setDateTime();
+
+if(adminKey())
+  refreshAll();
+
+setInterval(
+  ()=>{
+    if(adminKey())
+      loadBookings()
+        .catch(()=>{});
+  },
+  10000
+);
+
+</script>
+
+</body>
+</html>
